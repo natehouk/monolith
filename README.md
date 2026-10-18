@@ -2,6 +2,8 @@
 
 **A subtractive synthesizer plugin, mono or 10-voice poly, for macOS, Windows and Linux (VST3 · AU · CLAP · VST2).**
 
+Part of **[Epsilon Audio](https://github.com/natehouk/epsilon-plugins)**, a family of free, open-source plugins: Monolith, Caldera, Obsidian, Strata and Basalt.
+
 ![Monolith](screenshot.png)
 
 Monolith is a clean-room design with the same feature set as FabFilter One, FabFilter's first synthesizer (2002), plus a few extras. It was written from scratch, working only from FabFilter's public product description and help pages. No FabFilter code, binaries, presets, artwork or trademarks were used. The DSP is built from published, textbook techniques:
