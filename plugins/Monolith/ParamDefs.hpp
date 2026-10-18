@@ -1,4 +1,4 @@
-// Shared parameter metadata (DSP + UI). License: ISC.
+// Shared parameter metadata (DSP + UI). License: MIT.
 #pragma once
 #include "MonoEngine.hpp"
 #include <cstdint>
@@ -39,6 +39,37 @@ static const ParamDef kDefs[kParamCount] = {
     {"LFO > Cutoff",    "lfocut",    "",    0.f,   1.f,     0},
     {"Bend Range",      "bend",      "st",  0.f,   12.f,    kHintInteger},
     {"Volume",          "volume",    "dB",  -36.f, 6.f,     0},
+    // 1.3
+    {"Voice Mode",      "voicemode", "",    0.f,   1.f,     kHintInteger},
+    {"Hold",            "hold",      "s",   0.f,   5.f,     0},
+    {"PWM Source",      "pwmsrc",    "",    0.f,   3.f,     kHintInteger},
+    {"Noise Type",      "noisetype", "",    0.f,   1.f,     kHintInteger},
+    {"Pitch Env Amt",   "penvamt",   "",    -1.f,  1.f,     0},
+    {"LFO Wave",        "lfowave",   "",    0.f,   2.f,     kHintInteger},
+    {"LFO Balance",     "lfobal",    "",    0.f,   1.f,     0},
+    {"LFO Sync",        "lfosync",   "",    0.f,   1.f,     kHintBoolean | kHintInteger},
+    {"LFO Sync Rate",   "lfosyncrt", "",    0.f,   10.f,    kHintInteger},
+    {"Osc Level",       "osclevel",  "",    0.f,   1.f,     0},
 };
+
+// Labels for stepped parameters (shared by host enum lists and the UI).
+inline const char* const* enumLabels(uint32_t p, int& count) {
+    static const char* const fmode[] = { "Low Pass", "Band Pass", "High Pass" };
+    static const char* const vmode[] = { "Mono", "Poly" };
+    static const char* const pwm[]   = { "Off", "LFO", "Mod Env", "Mod Env Inv" };
+    static const char* const noise[] = { "White", "Pink" };
+    static const char* const wave[]  = { "Sine", "Triangle", "Square" };
+    static const char* const rate[]  = { "16 bars", "8 bars", "4 bars", "2 bars", "1 bar",
+                                         "1/2", "1/4", "1/8", "1/16", "1/32", "1/64" };
+    switch (p) {
+    case kFilterMode:  count = 3;  return fmode;
+    case kVoiceMode:   count = 2;  return vmode;
+    case kPwmSource:   count = 4;  return pwm;
+    case kNoiseType:   count = 2;  return noise;
+    case kLfoWave:     count = 3;  return wave;
+    case kLfoSyncRate: count = 11; return rate;
+    default:           count = 0;  return nullptr;
+    }
+}
 
 } // namespace mono

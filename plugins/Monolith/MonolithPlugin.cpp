@@ -1,4 +1,4 @@
-// Monolith — DPF plugin wrapper. License: ISC.
+// Monolith — DPF plugin wrapper. License: MIT.
 #include "DistrhoPlugin.hpp"
 #include "ParamDefs.hpp"
 #include "Presets.hpp"
@@ -16,13 +16,14 @@ public:
 protected:
     const char* getLabel() const override { return "Monolith"; }
     const char* getDescription() const override {
-        return "Monophonic subtractive synthesizer: morphing oscillator, sub & noise, "
-               "resonant multimode filter, two envelopes, glide and LFO.";
+        return "Subtractive synthesizer, mono or 10-voice poly: morphing oscillator with PWM, "
+               "sub and white/pink noise, resonant multimode filter, two envelopes with hold, "
+               "glide and a tempo-syncable LFO.";
     }
     const char* getMaker() const override { return "Epsilon Audio"; }
     const char* getHomePage() const override { return "https://epsilonrecords.com"; }
-    const char* getLicense() const override { return "ISC"; }
-    uint32_t getVersion() const override { return d_version(1, 2, 0); }
+    const char* getLicense() const override { return "MIT"; }
+    uint32_t getVersion() const override { return d_version(1, 3, 0); }
 
     void initParameter(uint32_t i, Parameter& prm) override {
         const ParamDef& d = kDefs[i];
@@ -33,12 +34,11 @@ protected:
         prm.name = d.name; prm.symbol = d.sym; prm.unit = d.unit;
         prm.ranges.min = d.min; prm.ranges.max = d.max;
         Engine def; prm.ranges.def = def.p[i];
-        if (i == kFilterMode) {
-            ParameterEnumerationValue* ev = new ParameterEnumerationValue[3];
-            ev[0].value = 0; ev[0].label = "Low Pass";
-            ev[1].value = 1; ev[1].label = "Band Pass";
-            ev[2].value = 2; ev[2].label = "High Pass";
-            prm.enumValues.count = 3; prm.enumValues.restrictedMode = true; prm.enumValues.values = ev;
+        int n = 0;
+        if (const char* const* labels = enumLabels(i, n)) {
+            ParameterEnumerationValue* ev = new ParameterEnumerationValue[n];
+            for (int k = 0; k < n; ++k) { ev[k].value = (float)k; ev[k].label = labels[k]; }
+            prm.enumValues.count = (uint8_t)n; prm.enumValues.restrictedMode = true; prm.enumValues.values = ev;
         }
     }
 
@@ -53,6 +53,16 @@ protected:
 
     void run(const float**, float** outputs, uint32_t frames,
              const MidiEvent* ev, uint32_t evCount) override {
+        const TimePosition& tp = getTimePosition();
+        if (tp.bbt.valid) {
+            const double bpb = tp.bbt.beatsPerBar > 0 ? tp.bbt.beatsPerBar : 4.0;
+            const double tpb = tp.bbt.ticksPerBeat > 0 ? tp.bbt.ticksPerBeat : 1920.0;
+            const double barPos = (tp.bbt.bar - 1) + ((tp.bbt.beat - 1) + tp.bbt.tick / tpb) / bpb;
+            engine.setTransport(true, tp.playing, barPos, tp.bbt.beatsPerMinute, bpb);
+        } else {
+            engine.setTransport(false, false, 0.0, 120.0, 4.0);
+        }
+
         uint32_t pos = 0;
         for (uint32_t e = 0; e <= evCount; ++e) {
             const uint32_t until = (e < evCount) ? std::min(ev[e].frame, frames) : frames;
@@ -66,7 +76,9 @@ protected:
             else if (st == 0xE0) engine.pitchBend(d[1] | (d[2] << 7));
             else if (st == 0xB0) {
                 if (d[1] == 1) engine.modWheel(d[2]);
-                else if (d[1] == 120 || d[1] == 123) engine.allNotesOff();
+                else if (d[1] == 64) engine.sustainPedal(d[2] >= 64);
+                else if (d[1] == 120) engine.allSoundOff();
+                else if (d[1] == 123) engine.allNotesOff();
             }
         }
     }
