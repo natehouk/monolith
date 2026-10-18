@@ -1,4 +1,4 @@
-# Monolith 1.1 — monophonic synthesizer (VST3 / VST2 / CLAP)
+# Monolith 1.2 — monophonic synthesizer (VST3 / VST2 / CLAP)
 
 Original mono synth with the same class of feature set as FabFilter's first product, FabFilter One (2002). It is a **clean-room implementation**. No FabFilter code, binaries, assets, presets, UI artwork or product name were used or referenced. The DSP is built entirely from published, textbook techniques:
 
@@ -27,7 +27,7 @@ Pitch: glide, octave, fine tune, pitch bend, LFO vibrato, mod wheel (CC1 → vib
 | LFO | Rate (0.05–20 Hz), Vibrato, LFO > Cutoff |
 | Output | Volume (−36…+6 dB), with a built-in soft limiter that caps output at 0 dBFS |
 
-**Factory presets:** Init, Acid Line, Fat Bass, Soft Lead, Pluck, Sub Drone.
+**Factory presets:** Init, Acid Line, Fat Bass, Soft Lead, Pluck, Sub Drone. Choose them from the selector in the plugin header, which works the same in every format and DAW (see below).
 
 **MIDI:** note on/off, velocity, pitch bend, CC1 (mod wheel → vibrato), CC120/123 (all notes off).
 
@@ -43,7 +43,7 @@ Pitch: glide, octave, fine tune, pitch bend, LFO vibrato, mod wheel (CC1 → vib
 
 VST2 (`Monolith-vst.dll` / `.so`) is also included for older hosts.
 
-## Interface (new in 1.1)
+## Interface
 
 ![Monolith UI](screenshot.png)
 
@@ -60,8 +60,13 @@ The interface is an original vector design that scales on HiDPI screens. It has:
 | Mouse wheel | Step the value |
 | Double-click | Reset to default |
 | Hover | Show the current value |
+| ◀ / ▶ in the header | Previous / next preset |
+| Click the preset name | Open the preset list |
+| Mouse wheel over the preset name | Step through presets |
 
 Time knobs use a square-law curve, so short envelope times get more of the knob's travel.
+
+A `*` after the preset name means you've changed a setting since loading it. Preset changes are sent to the host as ordinary parameter changes, so they can be undone and recorded as automation. They also work in CLAP hosts, which don't show the plugin's program list.
 
 **Windows note:** the binaries are unsigned. They are statically linked, so no runtime install is needed.
 
@@ -69,7 +74,7 @@ Time knobs use a square-law curve, so short envelope times get more of the knob'
 
 The macOS binaries are built by GitHub Actions (`.github/workflows/build.yml`) on a `macos-14` runner. The build is universal (Apple Silicon + Intel) and produces VST3, AU and CLAP. The bundles are ad-hoc signed.
 
-To get them, push this folder to a GitHub repo. Download the `Monolith-macos-universal` artifact from the Actions run, or push a `v1.1` tag to get a GitHub Release with all three platforms.
+To get them, push this folder to a GitHub repo. Download the `Monolith-macos-universal` artifact from the Actions run, or push a version tag (e.g. `v1.2`) to get a GitHub Release with all three platforms.
 
 Without notarization, macOS may quarantine the downloaded plugin. Clear the flag with:
 
@@ -100,6 +105,7 @@ make WINDOWS=true CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++   # Windo
 - `plugins/Monolith/MonoEngine.hpp`: all of the DSP, header-only, with no framework dependency
 - `plugins/Monolith/MonolithPlugin.cpp`: plugin wrapper and presets
 - `plugins/Monolith/ParamDefs.hpp`: parameter table shared by the DSP and the UI
+- `plugins/Monolith/Presets.hpp`: factory presets shared by the DSP and the UI
 - `plugins/Monolith/MonolithUI.cpp`: custom interface (NanoVG)
 
 License: ISC.

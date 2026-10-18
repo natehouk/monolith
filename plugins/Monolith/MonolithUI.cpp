@@ -1,6 +1,7 @@
 // Monolith — custom vector UI (DPF/NanoVG). Original design. License: ISC.
 #include "DistrhoUI.hpp"
 #include "ParamDefs.hpp"
+#include "Presets.hpp"
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -76,6 +77,10 @@ static const Ctl kCtls[] = {
     { Knob, kLfoCutoff, 852, 466, 15, "> CUTOFF" },
 };
 static constexpr int kNumCtls = sizeof(kCtls) / sizeof(kCtls[0]);
+
+// header preset selector:  [◀][ name ▾ ][▶]
+static constexpr float PS_X = 500.f, PS_Y = 20.f, PS_W = 272.f, PS_H = 28.f, PS_ARROW = 30.f;
+static constexpr float PS_ROW = 26.f;
 
 static bool isTime(uint32_t p) {
     return p == kGlide || (p >= kFltAttack && p <= kAmpRelease && p != kFltSustain && p != kAmpSustain);
@@ -156,7 +161,7 @@ protected:
         textAlign(ALIGN_LEFT | ALIGN_MIDDLE); text(44, 34, "MONOLITH", nullptr);
         fontSize(10); textLetterSpacing(2.5f); fillColor(C_DIM);
         text(252, 35, "MONOPHONIC SYNTHESIZER", nullptr);
-        textAlign(ALIGN_RIGHT | ALIGN_MIDDLE); text(W - 22, 35, "EPSILON AUDIO  ·  1.1", nullptr);
+        textAlign(ALIGN_RIGHT | ALIGN_MIDDLE); text(W - 22, 35, "EPSILON AUDIO  ·  1.2", nullptr);
         // accent bar: a single slab
         beginPath(); rect(20, 21, 10, 26); fillColor(C_ACCENT); fill();
 
@@ -169,6 +174,8 @@ protected:
         drawLfo(760, 340, 184, 30);
 
         for (int i = 0; i < kNumCtls; ++i) drawCtl(kCtls[i], i == active || i == hover);
+        drawPresetBar();
+        if (menuOpen) drawPresetMenu();
         restore();
     }
 
@@ -339,6 +346,103 @@ protected:
         }
     }
 
+    // ---- presets ------------------------------------------------------------
+    bool matches(uint32_t idx) const {
+        const float* v = presets()[idx].v;
+        for (uint32_t i = 0; i < kParamCount; ++i) {
+            const float tol = 1e-4f * std::max(1.f, std::fabs(v[i]));
+            if (std::fabs(val[i] - v[i]) > tol) return false;
+        }
+        return true;
+    }
+    int exactMatch() const {
+        for (uint32_t i = 0; i < kNumPresets; ++i) if (matches(i)) return (int)i;
+        return -1;
+    }
+    void applyPreset(int idx) {
+        idx = (idx % (int)kNumPresets + (int)kNumPresets) % (int)kNumPresets;
+        const float* v = presets()[idx].v;
+        for (uint32_t i = 0; i < kParamCount; ++i) {
+            if (val[i] == v[i]) continue;
+            editParameter(i, true); setValue(i, v[i]); editParameter(i, false);
+        }
+        curPreset = idx; repaint();
+    }
+    void programLoaded(uint32_t index) override { curPreset = (int)index; repaint(); }
+
+    void drawPresetBar() {
+        const float x = PS_X, y = PS_Y, w = PS_W, h = PS_H, a = PS_ARROW;
+        // frame
+        beginPath(); roundedRect(x, y, w, h, 5); fillColor(C_PANEL); fill();
+        strokeColor(menuOpen ? C_ACCENT : C_LINE); strokeWidth(1); stroke();
+        // dividers
+        beginPath(); moveTo(x + a, y + 5); lineTo(x + a, y + h - 5);
+        moveTo(x + w - a, y + 5); lineTo(x + w - a, y + h - 5);
+        strokeColor(C_LINE); stroke();
+        // arrows
+        for (int side = 0; side < 2; ++side) {
+            const bool hot = presetHover == (side == 0 ? 0 : 2);
+            const float cx = side == 0 ? x + a / 2 : x + w - a / 2, cy = y + h / 2, d = side == 0 ? -1.f : 1.f;
+            beginPath(); moveTo(cx - 3 * d, cy - 5); lineTo(cx + 3 * d, cy); lineTo(cx - 3 * d, cy + 5); closePath();
+            fillColor(hot ? C_ACCENT : C_DIM); fill();
+        }
+        // name
+        char buf[48];
+        int shown = curPreset;
+        bool modified = false;
+        if (shown < 0 || !matches((uint32_t)shown)) {
+            const int m = exactMatch();
+            if (m >= 0) { shown = m; }
+            else modified = true;
+        }
+        if (shown < 0) snprintf(buf, sizeof buf, "Custom");
+        else snprintf(buf, sizeof buf, modified ? "%s *" : "%s", presets()[shown].name);
+        fontSize(12); textLetterSpacing(1.2f); textAlign(ALIGN_CENTER | ALIGN_MIDDLE);
+        fillColor(presetHover == 1 || menuOpen ? C_TEXT : Color(0xd0, 0xcc, 0xc4));
+        text(x + w / 2 - 6, y + h / 2 + 0.5f, buf, nullptr);
+        // caret
+        const float cx = x + w - a - 14, cy = y + h / 2;
+        beginPath(); moveTo(cx - 4, cy - 2); lineTo(cx + 4, cy - 2); lineTo(cx, cy + 3); closePath();
+        fillColor(C_DIM); fill();
+    }
+
+    void drawPresetMenu() {
+        const float x = PS_X + PS_ARROW, w = PS_W - 2 * PS_ARROW, y = PS_Y + PS_H + 4;
+        const float h = PS_ROW * kNumPresets + 8;
+        // shadow + body
+        beginPath(); rect(x - 10, y - 4, w + 20, h + 18);
+        fillPaint(boxGradient(x, y + 2, w, h, 6, 12, Color(0, 0, 0, 0.6f), Color(0, 0, 0, 0.f))); fill();
+        beginPath(); roundedRect(x, y, w, h, 6); fillColor(C_PANEL_HI); fill();
+        strokeColor(C_LINE); strokeWidth(1); stroke();
+        const int cur = curPreset >= 0 ? curPreset : exactMatch();
+        for (uint32_t i = 0; i < kNumPresets; ++i) {
+            const float ry = y + 4 + PS_ROW * i;
+            if ((int)i == menuHover) {
+                beginPath(); roundedRect(x + 4, ry, w - 8, PS_ROW, 4); fillColor(C_ACCENT_A(40)); fill();
+            }
+            if ((int)i == cur) {
+                beginPath(); circle(x + 16, ry + PS_ROW / 2, 3); fillColor(C_ACCENT); fill();
+            }
+            fontSize(12); textLetterSpacing(1.f); textAlign(ALIGN_LEFT | ALIGN_MIDDLE);
+            fillColor((int)i == menuHover || (int)i == cur ? C_TEXT : C_DIM);
+            text(x + 30, ry + PS_ROW / 2 + 0.5f, presets()[i].name, nullptr);
+        }
+    }
+
+    // -1 none, 0 prev arrow, 1 name, 2 next arrow
+    int presetBarHit(float x, float y) const {
+        if (y < PS_Y || y > PS_Y + PS_H || x < PS_X || x > PS_X + PS_W) return -1;
+        if (x < PS_X + PS_ARROW) return 0;
+        if (x > PS_X + PS_W - PS_ARROW) return 2;
+        return 1;
+    }
+    int menuHit(float x, float y) const {
+        const float mx = PS_X + PS_ARROW, mw = PS_W - 2 * PS_ARROW, my = PS_Y + PS_H + 8;
+        if (x < mx || x > mx + mw || y < my || y >= my + PS_ROW * kNumPresets) return -1;
+        return (int)((y - my) / PS_ROW);
+    }
+    int stepBase() const { return curPreset >= 0 ? curPreset : std::max(0, exactMatch()); }
+
     // ---- interaction ------------------------------------------------------
     int hit(float x, float y, int* seg = nullptr) const {
         for (int i = 0; i < kNumCtls; ++i) {
@@ -358,6 +462,19 @@ protected:
     bool onMouse(const MouseEvent& ev) override {
         const float x = ev.pos.getX() / uiScale, y = ev.pos.getY() / uiScale;
         if (ev.button != 1) return false;
+        if (ev.press && menuOpen) {
+            const int m = menuHit(x, y);
+            menuOpen = false; menuHover = -1;
+            if (m >= 0) applyPreset(m);
+            repaint();
+            return true;               // a click anywhere closes the menu
+        }
+        if (ev.press) {
+            const int pb = presetBarHit(x, y);
+            if (pb == 0) { applyPreset(stepBase() - 1); return true; }
+            if (pb == 2) { applyPreset(stepBase() + 1); return true; }
+            if (pb == 1) { menuOpen = true; menuHover = -1; repaint(); return true; }
+        }
         if (ev.press) {
             int seg = 0; const int i = hit(x, y, &seg);
             if (i < 0) return false;
@@ -389,13 +506,23 @@ protected:
             setValue(c.param, fromNorm(c.param, dragNorm));
             return true;
         }
-        const int h = hit(x, y);
+        if (menuOpen) {
+            const int m = menuHit(x, y);
+            if (m != menuHover) { menuHover = m; repaint(); }
+            return true;
+        }
+        const int pb = presetBarHit(x, y);
+        if (pb != presetHover) { presetHover = pb; repaint(); }
+        const int h = pb >= 0 ? -1 : hit(x, y);
         if (h != hover) { hover = h; repaint(); }
         return false;
     }
 
     bool onScroll(const ScrollEvent& ev) override {
-        const int i = hit(ev.pos.getX() / uiScale, ev.pos.getY() / uiScale);
+        const float sx = ev.pos.getX() / uiScale, sy = ev.pos.getY() / uiScale;
+        if (menuOpen) return true;
+        if (presetBarHit(sx, sy) >= 0) { applyPreset(stepBase() + (ev.delta.getY() > 0 ? -1 : 1)); return true; }
+        const int i = hit(sx, sy);
         if (i < 0 || kCtls[i].type != Knob) return false;
         const uint32_t p = kCtls[i].param;
         float step = (ev.mod & kModifierShift) ? 0.004f : 0.025f;
@@ -410,6 +537,8 @@ private:
     float val[kParamCount], defv[kParamCount];
     float uiScale = 1.f;
     int active = -1, hover = -1, lastClick = -1;
+    int curPreset = 0, presetHover = -1, menuHover = -1;
+    bool menuOpen = false;
     uint lastClickTime = 0;
     float dragY = 0, dragNorm = 0;
 
