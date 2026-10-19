@@ -20,12 +20,57 @@ jobs:
           CXXFLAGS: -arch x86_64 -arch arm64 -mmacosx-version-min=10.13
           LDFLAGS: -arch x86_64 -arch arm64 -mmacosx-version-min=10.13
         run: make -C plugins/Monolith -j3
-      - name: Ad-hoc sign bundles
+      - name: Sign and notarize (Developer ID when the secrets are set, otherwise ad-hoc)
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
         run: |
-          for b in bin/*.vst3 bin/*.component bin/*.vst bin/*.clap; do
-            [ -e "$b" ] && codesign --force --deep --sign - "$b"
-          done
+          set -euo pipefail
+          shopt -s nullglob
+          bundles=(bin/*.vst3 bin/*.component bin/*.vst bin/*.clap)
           lipo -info bin/Monolith.vst3/Contents/MacOS/Monolith
+          if [ -z "${MACOS_CERT_P12}" ] || [ -z "${NOTARY_KEY}" ]; then
+            echo "::warning::Developer ID secrets not set: ad-hoc signing only (not notarized)"
+            for b in "${bundles[@]}"; do codesign --force --deep --sign - "$b"; done
+            exit 0
+          fi
+          # temporary keychain holding the Developer ID Application certificate
+          KC="$RUNNER_TEMP/sign.keychain-db"; KP="$(uuidgen)"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KP" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KP" "$KC"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KP" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          ID="$(security find-identity -v -p codesigning "$KC" | grep -o '"Developer ID Application[^"]*"' | head -1 | tr -d '"')"
+          [ -n "$ID" ] || { echo "::error::MACOS_CERT_P12 has no Developer ID Application identity"; exit 1; }
+          echo "Signing with: $ID"
+          # hardened runtime + secure timestamp, as notarization requires
+          for b in "${bundles[@]}"; do
+            codesign --force --options runtime --timestamp --sign "$ID" "$b"
+            codesign --verify --strict --verbose=2 "$b"
+          done
+          # notarize all bundles in one submission (App Store Connect API key), then staple each
+          echo "$NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          mkdir -p "$RUNNER_TEMP/notarize" && cp -R "${bundles[@]}" "$RUNNER_TEMP/notarize/"
+          ditto -c -k "$RUNNER_TEMP/notarize" "$RUNNER_TEMP/notarize.zip"
+          NT=(--key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
+          OUT="$(xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" "${NT[@]}" --wait --timeout 30m --output-format json)"
+          echo "$OUT"
+          SUB="$(echo "$OUT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+          STATUS="$(echo "$OUT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')"
+          if [ "$STATUS" != "Accepted" ]; then
+            xcrun notarytool log "$SUB" "${NT[@]}" || true
+            echo "::error::Notarization $STATUS"; exit 1
+          fi
+          for b in "${bundles[@]}"; do xcrun stapler staple "$b"; xcrun stapler validate "$b"; done
+          rm -f "$RUNNER_TEMP/notary.p8"
+          security delete-keychain "$KC"
       - name: Package
         run: |
           mkdir -p dist/macos-universal
