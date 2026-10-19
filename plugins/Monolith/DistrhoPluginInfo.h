@@ -3,7 +3,7 @@
 
 #define DISTRHO_PLUGIN_BRAND   "Epsilon Audio"
 #define DISTRHO_PLUGIN_NAME    "Monolith"
-#define DISTRHO_PLUGIN_URI     "https://epsilonrecords.com/plugins/monolith"
+#define DISTRHO_PLUGIN_URI     "https://plugins.epsilonrecords.com/monolith"
 #define DISTRHO_PLUGIN_CLAP_ID "com.epsilonrecords.monolith"
 
 #define DISTRHO_PLUGIN_BRAND_ID  EpsA
