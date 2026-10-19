@@ -2,7 +2,7 @@
 
 **A subtractive synthesizer plugin, mono or 10-voice poly, for macOS, Windows and Linux (VST3 · AU · CLAP · VST2).**
 
-Part of **[Epsilon Audio](https://github.com/natehouk/epsilon-plugins)**, a family of free, open-source plugins: Monolith, Caldera, Obsidian, Strata, Basalt and Gneiss.
+Part of **[Epsilon Audio](https://github.com/natehouk/epsilon-plugins)**, a family of free, open-source plugins: Monolith, Caldera, Obsidian, Strata, Basalt, Gneiss, Mica and Flint.
 
 ![Monolith](screenshot.png)
 
