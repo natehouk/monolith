@@ -76,10 +76,15 @@ jobs:
           mkdir -p dist/macos-universal
           cp -R bin/*.vst3 bin/*.component bin/*.clap dist/macos-universal/ 2>/dev/null || true
           [ -e bin/Monolith.vst ] && cp -R bin/Monolith.vst dist/macos-universal/
+          cp docs/Monolith-Manual.html dist/macos-universal/
           cd dist && ditto -c -k --keepParent macos-universal Monolith-macos-universal.zip
       - uses: actions/upload-artifact@v4
         with:
           name: Monolith-macos-universal
+          path: dist/macos-universal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
           path: dist/Monolith-macos-universal.zip
 
   windows:
@@ -89,10 +94,16 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y mingw-w64
       - run: git clone --depth 1 --recursive https://github.com/DISTRHO/DPF.git dpf
       - run: make -C plugins/Monolith -j3 WINDOWS=true CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
-      - run: mkdir -p dist && cd bin && zip -r ../dist/Monolith-windows-x64.zip Monolith.vst3 Monolith.clap Monolith-vst.dll
+      - run: |
+          mkdir -p dist/windows-x64 && cp -R bin/Monolith.vst3 bin/Monolith.clap bin/Monolith-vst.dll docs/Monolith-Manual.html dist/windows-x64/
+          cd dist && zip -r Monolith-windows-x64.zip windows-x64
       - uses: actions/upload-artifact@v4
         with:
           name: Monolith-windows-x64
+          path: dist/windows-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
           path: dist/Monolith-windows-x64.zip
 
   linux:
@@ -102,10 +113,16 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libdbus-1-dev
       - run: git clone --depth 1 --recursive https://github.com/DISTRHO/DPF.git dpf
       - run: make -C plugins/Monolith -j3
-      - run: mkdir -p dist && cd bin && zip -r ../dist/Monolith-linux-x64.zip Monolith.vst3 Monolith.clap Monolith-vst.so
+      - run: |
+          mkdir -p dist/linux-x64 && cp -R bin/Monolith.vst3 bin/Monolith.clap bin/Monolith-vst.so docs/Monolith-Manual.html dist/linux-x64/
+          cd dist && zip -r Monolith-linux-x64.zip linux-x64
       - uses: actions/upload-artifact@v4
         with:
           name: Monolith-linux-x64
+          path: dist/linux-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
           path: dist/Monolith-linux-x64.zip
 
   release:
@@ -117,6 +134,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: release-*
           path: dist
           merge-multiple: true
       - uses: softprops/action-gh-release@v2

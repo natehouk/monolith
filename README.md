@@ -19,9 +19,9 @@ Get the latest build from [**Releases**](../../releases). Each zip holds one pla
 
 | Platform | File | Contains |
 |---|---|---|
-| macOS 10.13+ (Apple Silicon + Intel) | `Monolith-macos-universal.zip` | VST3, AU, CLAP |
-| Windows x64 | `Monolith-windows-x64.zip` | VST3, CLAP, VST2 |
-| Linux x64 | `Monolith-linux-x64.zip` | VST3, CLAP, VST2 |
+| macOS 10.13+ (Apple Silicon + Intel) | `Monolith-macos-universal.zip` | VST3, AU, CLAP, manual |
+| Windows x64 | `Monolith-windows-x64.zip` | VST3, CLAP, VST2, manual |
+| Linux x64 | `Monolith-linux-x64.zip` | VST3, CLAP, VST2, manual |
 
 ### Install
 
@@ -31,7 +31,7 @@ Get the latest build from [**Releases**](../../releases). Each zip holds one pla
 | Windows | `Monolith.vst3` (folder) / `Monolith.clap` | `C:\Program Files\Common Files\VST3\` / `CLAP\` |
 | Linux | `Monolith.vst3` / `Monolith.clap` | `~/.vst3/` / `~/.clap/` |
 
-**macOS:** the plugins are ad-hoc signed but not notarized. After copying, clear the download quarantine and rescan in your DAW:
+**macOS:** builds are notarized once the project's Apple signing credentials are set up. Until then they are ad-hoc signed; after copying, clear the download quarantine and rescan in your DAW:
 
 ```
 xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/*/Monolith*
@@ -88,28 +88,33 @@ xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/*/Monolith*
 - **Glide** in both modes: in poly, new notes slide from the previously played note.
 - Pitch-bend range 0–12 st, mod wheel → vibrato, **sustain pedal** (CC64), all-notes-off / all-sound-off.
 
-**Interface**
+**Interface and workflow**
 - Live oscillator scope, filter response curve, envelope and LFO displays.
+- **A/B** with copy, and **undo/redo** for every edit, including preset loads and A/B switches.
+- **MIDI Learn:** assign any control to a hardware knob or fader; assignments are saved with the project.
 - **Resizable:** drag the window corner. The layout keeps its aspect ratio and scales sharply on HiDPI screens.
 - Every parameter is automatable, with smoothing on cutoff, resonance, drive, levels, pulse width and volume, so there's no zipper noise.
+- **Hover tips** everywhere, a **HELP window**, and a **[full manual](docs/MANUAL.md)** (also in every release zip as `Monolith-Manual.html`).
 
 | Action | Result |
 |---|---|
 | Drag up/down | Adjust a knob (hold **Shift** for fine) |
+| Grab the rim of a large knob | Turn it in a circle |
 | Mouse wheel | Step the value |
 | **Double-click** | Type an exact value (e.g. `440`, `1.2k`, `250ms`, `-12`, `1/8`), then **Enter**. **Esc** cancels |
 | **Cmd-click** (macOS) / **Ctrl-click** | Reset to default |
-| Hover | Show the current value |
+| Hover | Show the current value, then a tip |
+| **Cmd/Ctrl-Z**, **Cmd/Ctrl-Shift-Z** | Undo, redo |
 
-**Presets:** 42 factory sounds in five categories: Bass, Lead, Poly, Pluck & Keys, FX & Drums.
+![Help](screenshot-help.png)
+
+**Presets:** 42 factory sounds in five categories (Bass, Lead, Poly, Pluck & Keys, FX & Drums), plus your own.
 
 ![Preset menu](screenshot-presets.png)
 
-- Click the preset name to open the list.
-- Use **◀ ▶** or the mouse wheel over the name to step through presets.
+- Click the preset name to open the browser; **SAVE CURRENT AS…** stores your own sounds as plain-text files that work on every system.
+- Use **◀ ▶** or the mouse wheel over the name to step through factory and user presets.
 - A `*` after the name means you've edited the sound since loading it.
-
-Preset changes are sent to the DAW as ordinary parameter changes, so you can undo them and record them as automation, in every format.
 
 ### Compared with FabFilter One
 
@@ -128,8 +133,11 @@ Preset changes are sent to the DAW as ordinary parameter changes, so you can und
 | Mono / 10-voice poly | ✓ (+ legato, sustain pedal) |
 | Velocity → volume and cutoff | ✓ |
 | Typed values, Cmd/Ctrl-click reset, value display, scaling | ✓ |
+| MIDI Learn | ✓ |
+| Undo/redo, A/B | ✓ |
+| Preset saving | ✓ plain-text user presets |
+| Help with interactive hints | ✓ hover tips, help pages and full manual |
 | 100+ factory presets | 42 |
-| MIDI Learn, undo/redo, preset saving | provided by the DAW (Bitwig, Live, Logic, Reaper…) |
 | AAX / AudioSuite (Pro Tools) | not supported (needs Avid's SDK and signing) |
 
 ## Build from source
@@ -157,22 +165,26 @@ g++ -O2 -std=c++11 presets.cpp -o presets && ./presets      # renders every fact
 
 Release checks:
 - Steinberg's VST3 validator passes 47/47.
-- The interface is exercised with scripted input under a virtual display: knob drags, segment switches, toggles, typed entry, Ctrl-click reset, the preset menu and window resizing.
+- The interface is exercised with scripted input under a virtual display: knob drags, segment switches, toggles, typed entry, Ctrl-click reset, the preset menu, saving a user preset, A/B, undo, MIDI Learn, hover tips, help and window resizing.
 
 ## Source layout
 
 | File | Contents |
 |---|---|
 | `plugins/Monolith/MonoEngine.hpp` | All DSP: voices, oscillator, filter, envelopes, LFO. Header-only, no framework dependency |
-| `plugins/Monolith/ParamDefs.hpp` | Parameter table and switch labels, shared by DSP and UI |
+| `plugins/Monolith/ParamDefs.hpp` | Parameter table, switch labels and value mapping, shared by DSP and UI |
 | `plugins/Monolith/Presets.hpp` | Factory presets (each lists only what it changes from the defaults) |
-| `plugins/Monolith/MonolithPlugin.cpp` | Plugin wrapper: parameters, programs, MIDI, host transport |
+| `plugins/Monolith/UserPresets.hpp` | User preset files |
+| `plugins/Monolith/Help.hpp` | Hover tip text and in-plugin help pages |
+| `plugins/Monolith/MonolithPlugin.cpp` | Plugin wrapper: parameters, programs, MIDI, MIDI Learn, host transport |
 | `plugins/Monolith/MonolithUI.cpp` | Custom vector interface (NanoVG) |
+| `docs/MANUAL.md` | User manual (`Monolith-Manual.html` is generated from it with pandoc) |
 
 New parameters are always appended to the end of the list, so automation and saved sessions from older versions keep working.
 
 ## Changelog
 
+- **2.0:** A/B with copy, undo/redo, MIDI Learn, user presets, hover tips, a help window and a full manual (in every release zip). Sessions and automation from 1.x load unchanged.
 - **1.3:** Mono / 10-voice poly, Hold, sustain pedal, PWM sources, pink noise and osc level, pitch envelope, LFO waveforms with balance and tempo sync, resizable UI, typed value entry, Cmd/Ctrl-click reset, 42 categorized presets. Vibrato depth now goes up to ±24 st (it uses a square-law curve, so small settings stay subtle). Relicensed under MIT.
 - **1.2:** Preset selector in the plugin header.
 - **1.1:** Custom interface, macOS universal build.
