@@ -535,7 +535,7 @@ protected:
     // a pill under the header for short messages; in learn mode it explains what to do
     void drawStatus() {
         std::string msg;
-        if (statusFlash > 0) msg = statusText;
+        if (flashing()) msg = statusText;
         else if (learnMode) msg = learnWaiting >= 0 ? std::string("Move a MIDI controller to assign: ") + paramDef((uint32_t)learnWaiting).name
                                                    : "MIDI Learn: click a control, then move a controller";
         if (!msg.empty()) {                         // sits in the gap between the header and the panels
@@ -549,9 +549,8 @@ protected:
             beginPath(); roundedRect(CLR_X, CLR_Y, CLR_W, CLR_H, 4); fillColor(hoverClear ? C_ACCENT_A(50) : C_PANEL_HI); fill(); strokeColor(C_ACCENT); strokeWidth(1); stroke();
             fontSize(8); textLetterSpacing(1.4f); textAlign(ALIGN_CENTER | ALIGN_MIDDLE); fillColor(C_TEXT); text(CLR_X + CLR_W / 2, CLR_Y + CLR_H / 2 + 0.5f, "CLEAR ALL", nullptr);
         }
-        if (statusFlash > 0) { --statusFlash; repaint(); }
     }
-    void flash(const std::string& s) { statusText = s; statusFlash = 60; repaint(); }
+    void flash(const std::string& s) { statusText = s; flashUntil = nowSec() + 1.4; repaint(); }
 
     // ---- presets ------------------------------------------------------------
     bool matchesValues(const float* v) const {
@@ -764,7 +763,7 @@ protected:
         const float s = uiScale();
         const float x = ev.pos.getX() / s, y = ev.pos.getY() / s;
         if (saving) return true;
-        if (ev.press) { statusFlash = 0; tipShown = false; tipSuppressed = tipKey; }
+        if (ev.press) { flashUntil = 0; tipShown = false; tipSuppressed = tipKey; }
         if (helpOpen) { if (ev.press && ev.button == 1) helpClick(x, y); return true; }
         if (ev.button == 2 && ev.press) {                  // right-click (DPF: 1 left, 2 right, 3 middle)
             if (menuOpen) { const int m = menuHit(x, y); if (m >= 0 && menuItem(m).kind == 1) { pendingDelete = menuItem(m).idx; repaint(); } return true; }
@@ -876,7 +875,9 @@ protected:
         return true;
     }
 
+    bool flashing() const { return nowSec() < flashUntil; }
     void uiIdle() override {
+        if (flashing() != flashShown) { flashShown = flashing(); repaint(); }
         if (gTipsOn && !tipShown && tipKey >= 0 && tipKey != tipSuppressed && active < 0 && !menuOpen && !saving && !helpOpen && editing < 0
             && nowSec() - tipSince > 0.6) { tipShown = true; repaint(); }
     }
@@ -987,7 +988,7 @@ private:
     float dragY = 0, dragNorm = 0; bool circular = false, gesture = false;
     std::vector<Snap> undoStack, redoStack;
     Snap abStore[2]; int abSlot = 0;
-    std::string editBuf, statusText; int statusFlash = 0;
+    std::string editBuf, statusText; double flashUntil = 0; bool flashShown = false;
     int curFactory = 0, presetHover = -1, menuHover = -1, pendingDelete = -1, hoverHeader = 0;
     std::string curUser; std::vector<std::string> userPresets;
     bool menuOpen = false, saving = false, saveError = false; std::string saveName;
