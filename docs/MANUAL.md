@@ -1,4 +1,4 @@
-# Monolith 2.0 — User Manual
+# Monolith 2.1 — User Manual
 
 Monolith is a subtractive synthesizer. A single morphing oscillator, a sub oscillator and noise go through a resonant multimode filter, shaped by two envelopes and an LFO. It plays as a monophonic synth or with ten voices. Typical uses:
 

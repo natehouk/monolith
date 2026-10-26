@@ -333,7 +333,7 @@ protected:
         fontSize(22); textLetterSpacing(9); fillColor(C_TEXT);
         textAlign(ALIGN_LEFT | ALIGN_MIDDLE); text(44, 34, "MONOLITH", nullptr);
         fontSize(9.5f); textLetterSpacing(2.5f); fillColor(C_DIM); text(252, 29, "SUBTRACTIVE SYNTH", nullptr);
-        fontSize(7); textLetterSpacing(1.1f); fillColor(C_FAINT); text(252, 41, "EPSILON AUDIO 2.0", nullptr);
+        fontSize(7); textLetterSpacing(1.1f); fillColor(C_FAINT); text(252, 41, "EPSILON AUDIO 2.1", nullptr);
         drawPresetBar();
         for (int k = 0; k < 2; ++k) {
             const float x = A_X + k * AB_W; const bool on = abSlot == k, hot = hoverHeader == 6 + k;

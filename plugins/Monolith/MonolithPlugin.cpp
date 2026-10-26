@@ -28,7 +28,7 @@ protected:
     const char* getMaker() const override { return "Epsilon Audio"; }
     const char* getHomePage() const override { return "https://epsilonrecords.com"; }
     const char* getLicense() const override { return "MIT"; }
-    uint32_t getVersion() const override { return d_version(2, 0, 0); }
+    uint32_t getVersion() const override { return d_version(2, 1, 0); }
 
     void initParameter(uint32_t i, Parameter& prm) override {
         const ParamDef& d = paramDef(i);
