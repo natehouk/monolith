@@ -49,6 +49,9 @@ static constexpr float W = 1060.f, H = 600.f;
 #define C_ACCENT_A(a) Color(0xff, 0xa8, 0x3e, (a) / 255.f)
 #define C_USER      Color(0x8c, 0xc8, 0xe8)
 #define C_DISPLAY   Color(0x0b, 0x0c, 0x0d)
+#define C_FAV       Color(0xff, 0xc8, 0x5a)       // favourite star
+#define C_ACC       C_ACCENT
+static Color withAlpha(const Color& c, float a) { Color r(c); r.alpha = a; return r; }
 
 enum WType { Knob, Toggle, Segment };
 struct Ctl { WType type; uint32_t param; float x, y, r; const char* label; };   // Segment: r = total width
@@ -140,7 +143,7 @@ static constexpr float PS_X = 410.f, PS_Y = 20.f, PS_W = 232.f, PS_H = 28.f, PS_
 static constexpr float A_X = 652.f, AB_W = 30.f, COPY_X = 714.f, COPY_W = 46.f;
 static constexpr float UNDO_X = 770.f, REDO_X = 822.f, UR_W = 48.f, LEARN_X = 880.f, LEARN_W = 70.f, HELP_X = 960.f, HELP_W = 50.f;
 // preset menu grid
-static constexpr float PM_COLW = 150.f, PM_ROW = 24.f, PM_HEAD = 24.f, PM_PAD = 8.f;
+static constexpr float PM_COLW = 146.f, PM_ROW = 24.f, PM_HEAD = 24.f, PM_PAD = 8.f;
 // learn-mode "clear all" button (top right of the voice panel)
 static constexpr float CLR_X = 940.f, CLR_Y = 70.f, CLR_W = 92.f, CLR_H = 18.f;
 
@@ -605,70 +608,114 @@ protected:
     }
 
     // menu geometry: Init and SAVE on top, then one column per category plus User
-    struct MRect { float x, y, w, h; int kind; int idx; };       // kind 0 factory, 1 user, 2 save
+    // preset browser: categories, user presets and favourites in columns; typing searches names and categories.
+    // kind: 0 factory, 1 user, 2 save button, 3 search field, 4 favourite (idx into favs)
+    struct MRect { float x, y, w, h; int kind; int idx; };
+    static std::string lower(const std::string& s) { std::string r(s); for (char& c : r) c = (char)std::tolower((unsigned char)c); return r; }
+    std::string favKey(int kind, int idx) const { return kind == 0 ? std::string("f:") + presets()[idx].name : (kind == 1 ? "u:" + userPresets[idx] : (idx < (int)favs.size() ? favs[idx] : std::string())); }
+    bool isFav(const std::string& k) const { return std::find(favs.begin(), favs.end(), k) != favs.end(); }
+    void toggleFav(const std::string& k) {
+        if (k.empty()) return;
+        auto it = std::find(favs.begin(), favs.end(), k); if (it != favs.end()) favs.erase(it); else favs.push_back(k);
+        saveFavourites(favs); repaint();
+    }
+    static constexpr int kMenuCols = kNumCategories + 2, kMenuRows = 16;
     void menuLayout(float& mx, float& my, float& mw, float& mh, std::vector<MRect>& items) const {
-        const int cols = kNumCategories + 1;
-        mw = PM_COLW * cols + 2 * PM_PAD;
-        mx = std::min(W - mw - 10, std::max(10.f, PS_X + PS_W / 2 - mw / 2));
-        my = PS_Y + PS_H + 4;
+        mw = PM_COLW * kMenuCols + 2 * PM_PAD; mx = std::min(W - mw - 8, std::max(8.f, PS_X + PS_W / 2 - mw / 2)); my = PS_Y + PS_H + 4;
         items.clear();
         const float top = my + PM_PAD + PM_ROW + 6 + PM_HEAD;
-        int rowsIn[kNumCategories + 1] = {}; int maxRows = 1;
-        for (uint32_t i = 0; i < kNumPresets; ++i) {
-            const char* cat = presets()[i].category;
-            if (std::strcmp(cat, "Init") == 0) { items.push_back({ mx + PM_PAD, my + PM_PAD, PM_COLW - 4, PM_ROW, 0, (int)i }); continue; }
-            for (int c = 0; c < kNumCategories; ++c)
-                if (std::strcmp(cat, kCategories[c]) == 0) {
-                    items.push_back({ mx + PM_PAD + c * PM_COLW, top + rowsIn[c] * PM_ROW, PM_COLW - 4, PM_ROW, 0, (int)i });
-                    maxRows = std::max(maxRows, ++rowsIn[c]);
-                }
-        }
-        const int nu = std::min(14, (int)userPresets.size());
-        for (int u = 0; u < nu; ++u) items.push_back({ mx + PM_PAD + kNumCategories * PM_COLW, top + u * PM_ROW, PM_COLW - 4, PM_ROW, 1, u });
-        maxRows = std::max(maxRows, nu);
+        int maxRows = 1;
+        items.push_back({ mx + PM_PAD + PM_COLW, my + PM_PAD, 300, PM_ROW, 3, 0 });
         items.push_back({ mx + mw - PM_PAD - 150, my + PM_PAD, 150, PM_ROW, 2, 0 });
+        if (!query.empty()) {
+            const std::string q = lower(query); int k = 0;
+            auto place = [&](int kind, int idx) { const int col = k / kMenuRows, row = k % kMenuRows; if (col >= kMenuCols) return; items.push_back({ mx + PM_PAD + col * PM_COLW, top + row * PM_ROW, PM_COLW - 4, PM_ROW, kind, idx }); maxRows = std::max(maxRows, row + 1); ++k; };
+            for (uint32_t i = 0; i < kNumPresets; ++i) if (lower(presets()[i].name).find(q) != std::string::npos || lower(presets()[i].category).find(q) != std::string::npos) place(0, (int)i);
+            for (int u = 0; u < (int)userPresets.size(); ++u) if (lower(userPresets[u]).find(q) != std::string::npos || std::string("user").find(q) != std::string::npos) place(1, u);
+        } else {
+            int rows[kNumCategories] = {};
+            for (uint32_t i = 0; i < kNumPresets; ++i) {
+                const char* cat = presets()[i].category;
+                if (std::strcmp(cat, "Init") == 0) { items.push_back({ mx + PM_PAD, my + PM_PAD, PM_COLW - 4, PM_ROW, 0, (int)i }); continue; }
+                for (int c = 0; c < kNumCategories; ++c)
+                    if (std::strcmp(cat, kCategories[c]) == 0) { items.push_back({ mx + PM_PAD + c * PM_COLW, top + rows[c] * PM_ROW, PM_COLW - 4, PM_ROW, 0, (int)i }); maxRows = std::max(maxRows, ++rows[c]); }
+            }
+            for (int u = 0; u < (int)userPresets.size() && u < kMenuRows; ++u) items.push_back({ mx + PM_PAD + kNumCategories * PM_COLW, top + u * PM_ROW, PM_COLW - 4, PM_ROW, 1, u });
+            maxRows = std::max(maxRows, std::min(kMenuRows, (int)userPresets.size()));
+            for (int f = 0; f < (int)favs.size() && f < kMenuRows; ++f) items.push_back({ mx + PM_PAD + (kNumCategories + 1) * PM_COLW, top + f * PM_ROW, PM_COLW - 4, PM_ROW, 4, f });
+            maxRows = std::max(maxRows, std::min(kMenuRows, (int)favs.size()));
+        }
         mh = PM_PAD + PM_ROW + 6 + PM_HEAD + maxRows * PM_ROW + PM_PAD;
     }
-
+    std::string itemLabel(const MRect& r) const {
+        if (r.kind == 0) return presets()[r.idx].name;
+        if (r.kind == 1) return userPresets[r.idx];
+        if (r.kind == 4 && r.idx < (int)favs.size()) return favs[r.idx].substr(2);
+        return "";
+    }
     void drawPresetMenu() {
         float mx, my, mw, mh; std::vector<MRect> items; menuLayout(mx, my, mw, mh, items);
-        beginPath(); rect(mx - 12, my - 4, mw + 24, mh + 20);
-        fillPaint(boxGradient(mx, my + 2, mw, mh, 6, 14, Color(0, 0, 0, 0.6f), Color(0, 0, 0, 0.f))); fill();
-        beginPath(); roundedRect(mx, my, mw, mh, 6); fillColor(C_PANEL_HI); fill();
-        strokeColor(C_LINE); strokeWidth(1); stroke();
-        beginPath(); moveTo(mx + PM_PAD, my + PM_PAD + PM_ROW + 3); lineTo(mx + mw - PM_PAD, my + PM_PAD + PM_ROW + 3);
-        strokeColor(C_LINE); stroke();
-        fontSize(8.5f); textLetterSpacing(2.f); textAlign(ALIGN_LEFT | ALIGN_MIDDLE);
-        for (int c = 0; c <= kNumCategories; ++c) {
-            std::string up = c < kNumCategories ? kCategories[c] : "User"; for (char& ch : up) ch = (char)std::toupper((unsigned char)ch);
-            fillColor(c < kNumCategories ? C_ACCENT : C_USER);
-            text(mx + PM_PAD + c * PM_COLW + 12, my + PM_PAD + PM_ROW + 6 + PM_HEAD / 2, up.c_str(), nullptr);
+        beginPath(); rect(mx - 12, my - 4, mw + 24, mh + 20); fillPaint(boxGradient(mx, my + 2, mw, mh, 6, 14, Color(0, 0, 0, 0.6f), Color(0, 0, 0, 0.f))); fill();
+        beginPath(); roundedRect(mx, my, mw, mh, 6); fillColor(C_PANEL_HI); fill(); strokeColor(C_LINE); strokeWidth(1); stroke();
+        beginPath(); moveTo(mx + PM_PAD, my + PM_PAD + PM_ROW + 3); lineTo(mx + mw - PM_PAD, my + PM_PAD + PM_ROW + 3); strokeColor(C_LINE); stroke();
+        fontSize(8.5f); textLetterSpacing(1.8f); textAlign(ALIGN_LEFT | ALIGN_MIDDLE);
+        const float hy = my + PM_PAD + PM_ROW + 6 + PM_HEAD / 2;
+        if (query.empty()) {
+            for (int c = 0; c < kMenuCols; ++c) {
+                std::string up = c < kNumCategories ? kCategories[c] : (c == kNumCategories ? "User" : "Favourites"); for (char& ch : up) ch = (char)std::toupper((unsigned char)ch);
+                fillColor(c < kNumCategories ? C_ACC : C_FAV); text(mx + PM_PAD + c * PM_COLW + 12, hy, up.c_str(), nullptr);
+            }
+            fontSize(10); textLetterSpacing(0.4f); fillColor(C_FAINT);
+            if (userPresets.empty()) text(mx + PM_PAD + kNumCategories * PM_COLW + 12, hy + PM_HEAD / 2 + PM_ROW / 2, "(none saved yet)", nullptr);
+            if (favs.empty()) text(mx + PM_PAD + (kNumCategories + 1) * PM_COLW + 12, hy + PM_HEAD / 2 + PM_ROW / 2, "(click a star)", nullptr);
+        } else {
+            int found = 0; for (const MRect& r : items) if (r.kind == 0 || r.kind == 1) ++found;
+            char b[64]; snprintf(b, sizeof b, found ? "%d MATCHING PRESET%s" : "NO PRESET MATCHES", found, found == 1 ? "" : "S"); fillColor(C_ACC); text(mx + PM_PAD + 12, hy, b, nullptr);
         }
-        if (userPresets.empty()) { fontSize(10.5f); textLetterSpacing(0.4f); fillColor(C_FAINT); text(mx + PM_PAD + kNumCategories * PM_COLW + 12, my + PM_PAD + PM_ROW + 6 + PM_HEAD + PM_ROW / 2, "(none saved yet)", nullptr); }
-        const int curF = curUser.empty() ? (curFactory >= 0 ? curFactory : exactMatch()) : -1;
         for (int i = 0; i < (int)items.size(); ++i) {
             const MRect& r = items[i]; const bool hot = i == menuHover;
             if (r.kind == 2) {
-                beginPath(); roundedRect(r.x, r.y + 1, r.w, r.h - 2, 4); fillColor(hot ? C_ACCENT_A(60) : C_PANEL); fill(); strokeColor(C_ACCENT); strokeWidth(1); stroke();
+                beginPath(); roundedRect(r.x, r.y + 1, r.w, r.h - 2, 4); fillColor(hot ? withAlpha(C_ACC, 0.25f) : C_PANEL); fill(); strokeColor(C_ACC); strokeWidth(1); stroke();
                 fontSize(9.5f); textLetterSpacing(1.6f); textAlign(ALIGN_CENTER | ALIGN_MIDDLE); fillColor(C_TEXT); text(r.x + r.w / 2, r.y + r.h / 2 + 0.5f, "SAVE CURRENT AS...", nullptr);
                 continue;
             }
-            const bool isCur = r.kind == 0 ? r.idx == curF : curUser == userPresets[r.idx];
+            if (r.kind == 3) {             // search field
+                beginPath(); roundedRect(r.x, r.y + 1, r.w, r.h - 2, 4); fillColor(C_DISPLAY); fill(); strokeColor(query.empty() ? C_LINE : C_ACC); strokeWidth(1); stroke();
+                beginPath(); circle(r.x + 12, r.y + r.h / 2, 4); moveTo(r.x + 15, r.y + r.h / 2 + 3); lineTo(r.x + 18, r.y + r.h / 2 + 6); strokeColor(C_DIM); strokeWidth(1.3f); stroke();
+                fontSize(11); textLetterSpacing(0.3f); textAlign(ALIGN_LEFT | ALIGN_MIDDLE); fillColor(query.empty() ? C_FAINT : C_TEXT);
+                text(r.x + 26, r.y + r.h / 2 + 0.5f, query.empty() ? "Type to search names and categories" : (query + "|").c_str(), nullptr);
+                continue;
+            }
+            const std::string key = favKey(r.kind, r.idx);
+            const bool isCur = r.kind == 0 ? (curUser.empty() && r.idx == curFactory) : (r.kind == 1 ? curUser == userPresets[r.idx] : false);
             const bool del = r.kind == 1 && pendingDelete == r.idx;
-            if (hot || del) { beginPath(); roundedRect(r.x, r.y, r.w, r.h, 4); fillColor(del ? Color(0xd0, 0x50, 0x40, 0.35f) : C_ACCENT_A(40)); fill(); }
-            if (isCur) { beginPath(); circle(r.x + 6, r.y + r.h / 2, 2.5f); fillColor(r.kind == 0 ? C_ACCENT : C_USER); fill(); }
-            fontSize(11.5f); textLetterSpacing(0.6f); textAlign(ALIGN_LEFT | ALIGN_MIDDLE);
-            fillColor(hot || isCur || del ? C_TEXT : C_DIM);
-            const std::string label = del ? "Delete? click again" : (r.kind == 0 ? std::string(presets()[r.idx].name) : userPresets[r.idx]);
+            if (hot || del) { beginPath(); roundedRect(r.x, r.y, r.w, r.h, 4); fillColor(del ? Color(0xd0, 0x50, 0x40, 0.35f) : withAlpha(C_ACC, 0.18f)); fill(); }
+            if (isCur) { beginPath(); circle(r.x + 6, r.y + r.h / 2, 2.5f); fillColor(C_ACC); fill(); }
+            fontSize(11); textLetterSpacing(0.3f); textAlign(ALIGN_LEFT | ALIGN_MIDDLE); fillColor(hot || isCur || del ? C_TEXT : C_DIM);
+            const std::string label = del ? "Delete? click again" : itemLabel(r);
             text(r.x + 12, r.y + r.h / 2 + 0.5f, label.c_str(), nullptr);
+            // the favourite star
+            const bool fav = isFav(key);
+            if (fav || hot) drawStar(r.x + r.w - 10, r.y + r.h / 2, 5.f, fav);
         }
     }
-    int menuHit(float x, float y) const {
-        float mx, my, mw, mh; std::vector<MRect> it; menuLayout(mx, my, mw, mh, it);
-        for (int i = 0; i < (int)it.size(); ++i) if (x >= it[i].x && x < it[i].x + it[i].w && y >= it[i].y && y < it[i].y + it[i].h) return i;
-        return -1;
+    void drawStar(float cx, float cy, float rr, bool filled) {
+        beginPath();
+        for (int k = 0; k < 10; ++k) { const float a = -3.14159265f / 2 + k * 3.14159265f / 5, q = k % 2 ? rr * 0.45f : rr; if (!k) moveTo(cx + q * std::cos(a), cy + q * std::sin(a)); else lineTo(cx + q * std::cos(a), cy + q * std::sin(a)); }
+        closePath();
+        if (filled) { fillColor(C_FAV); fill(); } else { strokeColor(C_DIM); strokeWidth(1); stroke(); }
     }
+    int menuHit(float x, float y) const { float mx, my, mw, mh; std::vector<MRect> it; menuLayout(mx, my, mw, mh, it);
+        for (int i = 0; i < (int)it.size(); ++i) if (x >= it[i].x && x < it[i].x + it[i].w && y >= it[i].y && y < it[i].y + it[i].h) return i;
+        return -1; }
     MRect menuItem(int i) const { float mx, my, mw, mh; std::vector<MRect> it; menuLayout(mx, my, mw, mh, it); return it[i]; }
+    void openMenu() { userPresets = listUserPresets(); favs = loadFavourites(); query.clear(); menuOpen = true; menuHover = -1; pendingDelete = -1; repaint(); }
+    void applyFavourite(int idx) {
+        if (idx >= (int)favs.size()) return;
+        const std::string& k = favs[idx];
+        if (k.compare(0, 2, "f:") == 0) { for (uint32_t i = 0; i < kNumPresets; ++i) if (k.substr(2) == presets()[i].name) { applyFactory((int)i); return; } }
+        else applyUser(k.substr(2));
+    }
     int presetBarHit(float x, float y) const {
         if (y < PS_Y || y > PS_Y + PS_H || x < PS_X || x > PS_X + PS_W) return -1;
         if (x < PS_X + PS_ARROW) return 0;
@@ -735,6 +782,13 @@ protected:
     bool onKeyboard(const KeyboardEvent& ev) override {
         if (!ev.press) return false;
         std::string* buf = saving ? &saveName : (editing >= 0 ? &editBuf : nullptr);
+        if (!buf && menuOpen) {                              // typing in the preset browser searches
+            if (ev.key == kKeyEscape) { if (!query.empty()) query.clear(); else menuOpen = false; }
+            else if (ev.key == kKeyBackspace || ev.key == kKeyDelete) { if (!query.empty()) query.pop_back(); }
+            else if (ev.key >= 32 && ev.key < 127 && query.size() < 32) query += (char)ev.key;
+            else return false;
+            menuHover = -1; pendingDelete = -1; repaint(); return true;
+        }
         if (!buf) {
             const bool cmd = (ev.mod & (kModifierControl | kModifierSuper)) != 0;
             if (cmd && (ev.key == 'z' || ev.key == 'Z')) { if (ev.mod & kModifierShift) redo(); else undo(); return true; }
@@ -780,9 +834,11 @@ protected:
             const int m = menuHit(x, y);
             if (m >= 0) {
                 const MRect r = menuItem(m);
+                if (r.kind == 3) return true;                       // the search field: just type
+                if ((r.kind == 0 || r.kind == 1 || r.kind == 4) && x >= r.x + r.w - 20) { toggleFav(favKey(r.kind, r.idx)); return true; }
                 if (r.kind == 2) { menuOpen = false; saving = true; saveError = false; saveName = curUser; }
                 else if (r.kind == 1 && pendingDelete == r.idx) { deleteUserPreset(userPresets[r.idx]); if (curUser == userPresets[r.idx]) curUser.clear(); userPresets = listUserPresets(); pendingDelete = -1; repaint(); return true; }
-                else { menuOpen = false; if (r.kind == 0) applyFactory(r.idx); else applyUser(userPresets[r.idx]); }
+                else { menuOpen = false; if (r.kind == 0) applyFactory(r.idx); else if (r.kind == 1) applyUser(userPresets[r.idx]); else applyFavourite(r.idx); }
             } else menuOpen = false;
             pendingDelete = -1; menuHover = -1; repaint(); return true;
         }
@@ -796,7 +852,7 @@ protected:
         const int pb = presetBarHit(x, y);
         if (pb == 0) { step(-1); return true; }
         if (pb == 2) { step(1); return true; }
-        if (pb == 1) { userPresets = listUserPresets(); menuOpen = true; menuHover = -1; pendingDelete = -1; repaint(); return true; }
+        if (pb == 1) { openMenu(); return true; }
         if (clearHit(x, y)) { setState("cmd", "clear"); for (int& m : paramCC) m = -1; flash("All MIDI assignments cleared"); return true; }
 
         int seg = 0; const int i = hit(x, y, &seg);
@@ -990,7 +1046,7 @@ private:
     Snap abStore[2]; int abSlot = 0;
     std::string editBuf, statusText; double flashUntil = 0; bool flashShown = false;
     int curFactory = 0, presetHover = -1, menuHover = -1, pendingDelete = -1, hoverHeader = 0;
-    std::string curUser; std::vector<std::string> userPresets;
+    std::string curUser, query; std::vector<std::string> userPresets, favs;
     bool menuOpen = false, saving = false, saveError = false; std::string saveName;
     bool learnMode = false, hoverClear = false; int learnWaiting = -1; float lastLearnEcho = 0;
     int tipKey = -1, tipSuppressed = -2; double tipSince = 0; bool tipShown = false; float tipX = 0, tipY = 0;

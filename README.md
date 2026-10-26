@@ -114,6 +114,7 @@ xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/*/Monolith*
 
 - Click the preset name to open the browser; **SAVE CURRENT AS…** stores your own sounds as plain-text files that work on every system.
 - Use **◀ ▶** or the mouse wheel over the name to step through factory and user presets.
+- The preset browser **searches** names and categories as you type, and a star keeps a preset in **Favourites**.
 - A `*` after the name means you've edited the sound since loading it.
 
 ### Compared with FabFilter One
@@ -184,6 +185,7 @@ New parameters are always appended to the end of the list, so automation and sav
 
 ## Changelog
 
+- **Unreleased:** the preset browser searches names and categories as you type, and keeps Favourites.
 - **2.0:** A/B with copy, undo/redo, MIDI Learn, user presets, hover tips, a help window and a full manual (in every release zip). Sessions and automation from 1.x load unchanged.
 - **1.3:** Mono / 10-voice poly, Hold, sustain pedal, PWM sources, pink noise and osc level, pitch envelope, LFO waveforms with balance and tempo sync, resizable UI, typed value entry, Cmd/Ctrl-click reset, 42 categorized presets. Vibrato depth now goes up to ±24 st (it uses a square-law curve, so small settings stay subtle). Relicensed under MIT.
 - **1.2:** Preset selector in the plugin header.

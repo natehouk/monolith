@@ -112,4 +112,19 @@ inline bool deleteUserPreset(const std::string& name) {
     return std::remove((userPresetDir() + "/" + name + kPresetExt).c_str()) == 0;
 }
 
+// favourites: one line per preset, "f:<factory name>" or "u:<user preset name>"
+inline std::vector<std::string> loadFavourites() {
+    std::vector<std::string> v; FILE* f = std::fopen((userPresetDir() + "/favourites.txt").c_str(), "rb");
+    if (!f) return v;
+    char line[256];
+    while (std::fgets(line, sizeof line, f)) { std::string s(line); while (!s.empty() && (s.back() == '\n' || s.back() == '\r')) s.pop_back(); if (s.size() > 2) v.push_back(s); }
+    std::fclose(f); return v;
+}
+inline void saveFavourites(const std::vector<std::string>& v) {
+    const std::string dir = userPresetDir(); makeDirs(dir);
+    FILE* f = std::fopen((dir + "/favourites.txt").c_str(), "wb"); if (!f) return;
+    for (const std::string& s : v) std::fprintf(f, "%s\n", s.c_str());
+    std::fclose(f);
+}
+
 } // namespace mono

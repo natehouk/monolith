@@ -68,7 +68,7 @@ inline const char* targetTip(int t) {
     case kTipA: case kTipB: return "Monolith keeps two complete sounds, A and B. Click the other letter to switch and compare.";
     case kTipCopy: return "Copies the current sound to the other slot.";
     case kTipPrev: return "Load the previous preset. The mouse wheel over the preset name also steps through presets.";
-    case kTipPresets: return "Open the preset browser: factory sounds in five categories, your own sounds, and SAVE CURRENT AS. A * after the name means you have changed it.";
+    case kTipPresets: return "Open the preset browser: factory sounds in five categories, your own sounds, and SAVE CURRENT AS. A * after the name means you have changed it. In the browser, type to search names and categories, and click a star to keep a preset in Favourites.";
     case kTipNext: return "Load the next preset.";
     case kTipScope: return "A picture of the oscillator mix: shape, pulse width, sub and noise.";
     case kTipFilter: return "The filter's response at the current cutoff, resonance and mode. The line marks the cutoff.";

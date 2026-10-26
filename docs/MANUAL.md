@@ -197,6 +197,8 @@ There are 42 factory sounds in five groups, plus your own:
 **Browsing**
 - Click the preset name to open the browser.
 - **◀ ▶**, or the mouse wheel over the name, step through factory and user presets.
+- **Search:** with the browser open, just type: the list narrows to presets whose name or category matches. Backspace edits, Esc clears the search (and then closes the browser).
+- **Favourites:** click the star at the right of any preset to add it to the FAVOURITES column; click again to remove it. Favourites are kept in `favourites.txt` in your presets folder.
 - A `*` after the name means you have changed the sound since loading it.
 
 **Your own presets**
